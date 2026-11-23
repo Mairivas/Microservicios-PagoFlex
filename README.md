@@ -5,7 +5,7 @@ Backend de PagoFlex (DSY1105, Evaluación Sumativa 3, DUOC UC) con Spring Boot, 
 ## Integrantes
 
 - Maicol Rivas (GitHub: Mairivas)
-- Integrante 2: _completar nombre y usuario de GitHub_
+Trabajo individual: todos los commits corresponden al único integrante, con autorización del profesor.
 
 Repositorio de la app: https://github.com/Mairivas/App-PagoFlex
 
