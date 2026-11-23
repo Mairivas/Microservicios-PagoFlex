@@ -27,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CompromisoService {
 
+    private static final List<String> MESES = List.of("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+            "agosto", "septiembre", "octubre", "noviembre", "diciembre");
+
     private static final List<String> MOTIVOS_ANULACION = List.of(
             "Repactación", "Error de registro", "Pagado directamente a la empresa", "Otro");
 
@@ -194,7 +197,43 @@ public class CompromisoService {
         c.setRecargoAplicado(vencido && empresa != null ? empresa.getRecargo() : 0);
         c.setEstado(Estados.PAGADO);
         c.setFechaPago(LocalDateTime.now(clock));
-        return toResponse(compromisoRepository.save(c));
+        Compromiso pagado = compromisoRepository.save(c);
+        generarSiguienteCuota(pagado);
+        return toResponse(pagado);
+    }
+
+    private void generarSiguienteCuota(Compromiso pagado) {
+        Integer numero = pagado.getCuotaNumero();
+        if (numero == null || pagado.getCuotaTotal() == null || numero >= pagado.getCuotaTotal()) {
+            return;
+        }
+        int siguiente = numero + 1;
+        if (compromisoRepository.existsByUsuarioIdAndEmpresaIdAndConceptoAndCuotaNumero(
+                pagado.getUsuarioId(), pagado.getEmpresaId(), pagado.getConcepto(), siguiente)) {
+            return;
+        }
+        LocalDate vencimiento = pagado.getVencimiento().plusMonths(1);
+        Compromiso proxima = new Compromiso();
+        proxima.setFolio(String.format("CP-%d-%04d", hoy().getYear(), 101 + compromisoRepository.count()));
+        proxima.setUsuarioId(pagado.getUsuarioId());
+        proxima.setEmpresaId(pagado.getEmpresaId());
+        proxima.setConcepto(conceptoDelMes(pagado.getConcepto(), vencimiento));
+        proxima.setCuotaNumero(siguiente);
+        proxima.setCuotaTotal(pagado.getCuotaTotal());
+        proxima.setMonto(pagado.getMonto());
+        proxima.setVencimiento(vencimiento);
+        proxima.setEstado(Estados.PENDIENTE);
+        compromisoRepository.save(proxima);
+    }
+
+    private String conceptoDelMes(String concepto, LocalDate vencimiento) {
+        String nuevoMes = vencimiento.getMonth().getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("es", "CL"));
+        for (String mes : MESES) {
+            if (concepto.toLowerCase().endsWith(" " + mes)) {
+                return concepto.substring(0, concepto.length() - mes.length()) + nuevoMes;
+            }
+        }
+        return concepto;
     }
 
     @Transactional
@@ -206,6 +245,11 @@ public class CompromisoService {
         c.setEstado(Estados.PENDIENTE);
         c.setRecargoAplicado(null);
         c.setFechaPago(null);
+        if (c.getCuotaNumero() != null) {
+            compromisoRepository.findFirstByUsuarioIdAndEmpresaIdAndCuotaNumeroAndEstadoAndRegistradoPorIdIsNull(
+                    c.getUsuarioId(), c.getEmpresaId(), c.getCuotaNumero() + 1, Estados.PENDIENTE)
+                    .ifPresent(compromisoRepository::delete);
+        }
         return toResponse(compromisoRepository.save(c));
     }
 

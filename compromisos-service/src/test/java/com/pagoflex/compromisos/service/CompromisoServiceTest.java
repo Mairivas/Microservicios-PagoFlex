@@ -29,6 +29,8 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.times;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -373,6 +375,75 @@ class CompromisoServiceTest {
         ApiException ex = assertThrows(ApiException.class, () -> service.pagar(2L, 1L));
         assertEquals(409, ex.getStatus().value());
         verify(compromisoRepository, never()).save(any());
+    }
+
+    @Test
+    void pagarUnaCuotaGeneraLaSiguienteConSuNuevoVencimiento() {
+        Compromiso c = compromiso(1L, 1L, 1L, "PENDIENTE", HOY.plusDays(2));
+        c.setConcepto("Cuota social octubre");
+        c.setCuotaNumero(10);
+        c.setCuotaTotal(12);
+        when(compromisoRepository.findById(1L)).thenReturn(Optional.of(c));
+
+        service.pagar(1L, 1L);
+
+        ArgumentCaptor<Compromiso> captor = ArgumentCaptor.forClass(Compromiso.class);
+        verify(compromisoRepository, times(2)).save(captor.capture());
+        Compromiso proxima = captor.getAllValues().get(1);
+        assertEquals(11, proxima.getCuotaNumero());
+        assertEquals(12, proxima.getCuotaTotal());
+        assertEquals("PENDIENTE", proxima.getEstado());
+        assertEquals(HOY.plusDays(2).plusMonths(1), proxima.getVencimiento());
+        assertEquals("Cuota social diciembre", proxima.getConcepto());
+        assertEquals(100000, proxima.getMonto());
+    }
+
+    @Test
+    void pagarLaUltimaCuotaNoGeneraOtra() {
+        Compromiso c = compromiso(1L, 1L, 1L, "PENDIENTE", HOY.plusDays(2));
+        c.setCuotaNumero(12);
+        c.setCuotaTotal(12);
+        when(compromisoRepository.findById(1L)).thenReturn(Optional.of(c));
+
+        service.pagar(1L, 1L);
+
+        verify(compromisoRepository, times(1)).save(any(Compromiso.class));
+    }
+
+    @Test
+    void pagarUnaCuotaCuyaSiguienteYaExisteNoLaDuplica() {
+        Compromiso c = compromiso(1L, 1L, 1L, "PENDIENTE", HOY.plusDays(2));
+        when(compromisoRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(compromisoRepository.existsByUsuarioIdAndEmpresaIdAndConceptoAndCuotaNumero(1L, 1L, "Cuota", 2)).thenReturn(true);
+
+        service.pagar(1L, 1L);
+
+        verify(compromisoRepository, times(1)).save(any(Compromiso.class));
+    }
+
+    @Test
+    void pagarUnCompromisoSinCuotasNoGeneraOtro() {
+        Compromiso c = compromiso(1L, 1L, 1L, "PENDIENTE", HOY.plusDays(2));
+        c.setCuotaNumero(null);
+        c.setCuotaTotal(null);
+        when(compromisoRepository.findById(1L)).thenReturn(Optional.of(c));
+
+        service.pagar(1L, 1L);
+
+        verify(compromisoRepository, times(1)).save(any(Compromiso.class));
+    }
+
+    @Test
+    void revertirPagoEliminaLaCuotaGeneradaAutomaticamente() {
+        Compromiso c = compromiso(1L, 1L, 1L, "PAGADO", HOY);
+        Compromiso generada = compromiso(2L, 1L, 1L, "PENDIENTE", HOY.plusMonths(1));
+        when(compromisoRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(compromisoRepository.findFirstByUsuarioIdAndEmpresaIdAndCuotaNumeroAndEstadoAndRegistradoPorIdIsNull(
+                1L, 1L, 2, "PENDIENTE")).thenReturn(Optional.of(generada));
+
+        service.revertirPago(1L);
+
+        verify(compromisoRepository).delete(generada);
     }
 
     @Test
