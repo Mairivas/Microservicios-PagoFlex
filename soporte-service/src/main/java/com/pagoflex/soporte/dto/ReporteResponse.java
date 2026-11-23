@@ -15,5 +15,6 @@ public record ReporteResponse(
         Long agenteId,
         String respuesta,
         Boolean atrasado,
-        LocalDateTime fechaResolucion) {
+        LocalDateTime fechaResolucion,
+        Boolean tieneEvidencia) {
 }

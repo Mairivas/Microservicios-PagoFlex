@@ -15,6 +15,8 @@ import com.pagoflex.soporte.dto.ReporteRequest;
 import com.pagoflex.soporte.dto.ReporteResponse;
 import com.pagoflex.soporte.entity.Reporte;
 import com.pagoflex.soporte.exception.ApiException;
+import com.pagoflex.soporte.entity.EvidenciaReporte;
+import com.pagoflex.soporte.repository.EvidenciaRepository;
 import com.pagoflex.soporte.repository.ReporteRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -39,6 +41,8 @@ class ReporteServiceTest {
     @Mock
     private ReporteRepository reporteRepository;
     @Mock
+    private EvidenciaRepository evidenciaRepository;
+    @Mock
     private CompromisoClient compromisoClient;
 
     private ReporteService service;
@@ -46,7 +50,7 @@ class ReporteServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-11-23T14:00:00Z"), ZoneId.of("America/Santiago"));
-        service = new ReporteService(reporteRepository, compromisoClient, clock);
+        service = new ReporteService(reporteRepository, evidenciaRepository, compromisoClient, clock);
         when(reporteRepository.save(any(Reporte.class))).thenAnswer(i -> i.getArgument(0));
         when(reporteRepository.count()).thenReturn(6L);
         when(compromisoClient.obtener(7L)).thenReturn(new CompromisoDto(7L, "CP-2026-0106", 1L, "PENDIENTE"));
@@ -208,5 +212,56 @@ class ReporteServiceTest {
 
         ApiException ex = assertThrows(ApiException.class, () -> service.resolver(1L, 9L, "Listo"));
         assertEquals(403, ex.getStatus().value());
+    }
+
+    @Test
+    void guardarEvidenciaDelPropioReporte() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+        when(evidenciaRepository.findByReporteId(1L)).thenReturn(Optional.empty());
+
+        service.guardarEvidencia(1L, 1L, java.util.Base64.getEncoder().encodeToString(new byte[] {1, 2, 3}));
+
+        verify(evidenciaRepository).save(any(EvidenciaReporte.class));
+    }
+
+    @Test
+    void guardarEvidenciaDeOtroUsuarioNoSeEncuentra() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+
+        assertThrows(ApiException.class, () -> service.guardarEvidencia(1L, 2L, "AAAA"));
+    }
+
+    @Test
+    void guardarEvidenciaInvalidaEsRechazada() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+
+        assertThrows(ApiException.class, () -> service.guardarEvidencia(1L, 1L, "***no-es-base64***"));
+        assertThrows(ApiException.class, () -> service.guardarEvidencia(1L, 1L, ""));
+    }
+
+    @Test
+    void guardarEvidenciaMuyGrandeEsRechazada() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+        String grande = java.util.Base64.getEncoder().encodeToString(new byte[2 * 1024 * 1024 + 1]);
+
+        assertThrows(ApiException.class, () -> service.guardarEvidencia(1L, 1L, grande));
+    }
+
+    @Test
+    void obtenerEvidenciaEntregaLaImagenEnBase64() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+        EvidenciaReporte evidencia = new EvidenciaReporte();
+        evidencia.setImagen(new byte[] {1, 2, 3});
+        when(evidenciaRepository.findByReporteId(1L)).thenReturn(Optional.of(evidencia));
+
+        assertEquals("AQID", service.obtenerEvidencia(1L, 1L, "USUARIO"));
+    }
+
+    @Test
+    void obtenerEvidenciaInexistenteEsNoEncontrado() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte(1L, 1L, "ABIERTO", AHORA, null)));
+        when(evidenciaRepository.findByReporteId(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ApiException.class, () -> service.obtenerEvidencia(1L, 1L, "USUARIO"));
     }
 }

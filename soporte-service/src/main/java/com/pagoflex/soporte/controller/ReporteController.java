@@ -1,5 +1,6 @@
 package com.pagoflex.soporte.controller;
 
+import com.pagoflex.soporte.dto.EvidenciaDto;
 import com.pagoflex.soporte.dto.ReporteRequest;
 import com.pagoflex.soporte.dto.ReporteResponse;
 import com.pagoflex.soporte.dto.ResolverRequest;
@@ -79,6 +80,26 @@ public class ReporteController {
             @RequestHeader("X-User-Role") String rol) {
         exigir(rol, "AGENTE");
         return reporteService.resolver(id, userId, request.respuesta());
+    }
+
+    @PutMapping("/{id}/evidencia")
+    @Operation(summary = "Adjuntar imagen de evidencia al reporte (usuario)")
+    public ReporteResponse guardarEvidencia(
+            @PathVariable Long id,
+            @Valid @RequestBody EvidenciaDto request,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Role") String rol) {
+        exigir(rol, "USUARIO");
+        return reporteService.guardarEvidencia(id, userId, request.imagenBase64());
+    }
+
+    @GetMapping("/{id}/evidencia")
+    @Operation(summary = "Obtener la imagen de evidencia del reporte")
+    public EvidenciaDto evidencia(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Role") String rol) {
+        return new EvidenciaDto(reporteService.obtenerEvidencia(id, userId, rol));
     }
 
     private void exigir(String rol, String esperado) {

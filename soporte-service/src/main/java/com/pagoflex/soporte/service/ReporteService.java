@@ -4,13 +4,16 @@ import com.pagoflex.soporte.client.CompromisoClient;
 import com.pagoflex.soporte.dto.CompromisoDto;
 import com.pagoflex.soporte.dto.ReporteRequest;
 import com.pagoflex.soporte.dto.ReporteResponse;
+import com.pagoflex.soporte.entity.EvidenciaReporte;
 import com.pagoflex.soporte.entity.Reporte;
 import com.pagoflex.soporte.exception.ApiException;
+import com.pagoflex.soporte.repository.EvidenciaRepository;
 import com.pagoflex.soporte.repository.ReporteRepository;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
@@ -18,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ReporteService {
+
+    private static final int TAMANO_MAXIMO = 2 * 1024 * 1024;
 
     public static final String ABIERTO = "ABIERTO";
     public static final String EN_GESTION = "EN_GESTION";
@@ -27,11 +32,14 @@ public class ReporteService {
             "Ya pagué por otro medio", "No reconozco este cobro", "El monto no corresponde", "Otro");
 
     private final ReporteRepository reporteRepository;
+    private final EvidenciaRepository evidenciaRepository;
     private final CompromisoClient compromisoClient;
     private final Clock clock;
 
-    public ReporteService(ReporteRepository reporteRepository, CompromisoClient compromisoClient, Clock clock) {
+    public ReporteService(ReporteRepository reporteRepository, EvidenciaRepository evidenciaRepository,
+            CompromisoClient compromisoClient, Clock clock) {
         this.reporteRepository = reporteRepository;
+        this.evidenciaRepository = evidenciaRepository;
         this.compromisoClient = compromisoClient;
         this.clock = clock;
     }
@@ -123,6 +131,34 @@ public class ReporteService {
         return toResponse(reporteRepository.save(reporte));
     }
 
+    public ReporteResponse guardarEvidencia(Long id, Long usuarioId, String imagenBase64) {
+        Reporte reporte = buscar(id);
+        if (!reporte.getUsuarioId().equals(usuarioId)) {
+            throw ApiException.notFound("No encontramos ese reporte.");
+        }
+        byte[] imagen;
+        try {
+            imagen = Base64.getDecoder().decode(imagenBase64);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("La imagen no es válida.");
+        }
+        if (imagen.length == 0 || imagen.length > TAMANO_MAXIMO) {
+            throw ApiException.badRequest("La imagen debe pesar menos de 2 MB.");
+        }
+        EvidenciaReporte evidencia = evidenciaRepository.findByReporteId(id).orElseGet(EvidenciaReporte::new);
+        evidencia.setReporteId(id);
+        evidencia.setImagen(imagen);
+        evidenciaRepository.save(evidencia);
+        return toResponse(reporte);
+    }
+
+    public String obtenerEvidencia(Long id, Long userId, String rol) {
+        obtener(id, userId, rol);
+        EvidenciaReporte evidencia = evidenciaRepository.findByReporteId(id)
+                .orElseThrow(() -> ApiException.notFound("Este reporte no tiene imagen adjunta."));
+        return Base64.getEncoder().encodeToString(evidencia.getImagen());
+    }
+
     private Reporte buscar(Long id) {
         return reporteRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("No encontramos ese reporte."));
@@ -145,6 +181,7 @@ public class ReporteService {
     private ReporteResponse toResponse(Reporte r) {
         return new ReporteResponse(r.getId(), r.getNumero(), r.getCompromisoId(), r.getFolio(), r.getUsuarioId(),
                 r.getMotivo(), r.getComentario(), r.getFecha(), r.getEstado(), r.getAgenteId(), r.getRespuesta(),
-                estaAtrasado(r), r.getFechaResolucion());
+                estaAtrasado(r), r.getFechaResolucion(),
+                r.getId() != null && evidenciaRepository.existsByReporteId(r.getId()));
     }
 }

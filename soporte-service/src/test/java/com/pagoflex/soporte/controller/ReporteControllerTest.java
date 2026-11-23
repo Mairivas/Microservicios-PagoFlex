@@ -40,7 +40,7 @@ class ReporteControllerTest {
 
     private ReporteResponse respuesta(String estado) {
         return new ReporteResponse(1L, "REP-0026", 7L, "CP-2026-0106", 1L, "El monto no corresponde", null,
-                LocalDateTime.of(2026, 11, 23, 11, 0), estado, null, null, false, null);
+                LocalDateTime.of(2026, 11, 23, 11, 0), estado, null, null, false, null, false);
     }
 
     @Test
@@ -112,6 +112,31 @@ class ReporteControllerTest {
                         .header("X-User-Id", 9).header("X-User-Role", "AGENTE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("RESUELTO"));
+    }
+
+    @Test
+    void guardarEvidenciaResponde200() throws Exception {
+        when(service.guardarEvidencia(1L, 1L, "AAAA")).thenReturn(respuesta("ABIERTO"));
+
+        mvc.perform(put("/api/reportes/1/evidencia").contentType(MediaType.APPLICATION_JSON).content("{\"imagenBase64\":\"AAAA\"}")
+                        .header("X-User-Id", 1).header("X-User-Role", "USUARIO"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void guardarEvidenciaComoAgenteEsProhibido() throws Exception {
+        mvc.perform(put("/api/reportes/1/evidencia").contentType(MediaType.APPLICATION_JSON).content("{\"imagenBase64\":\"AAAA\"}")
+                        .header("X-User-Id", 9).header("X-User-Role", "AGENTE"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void obtenerEvidenciaEntregaLaImagen() throws Exception {
+        when(service.obtenerEvidencia(1L, 1L, "USUARIO")).thenReturn("AAAA");
+
+        mvc.perform(get("/api/reportes/1/evidencia").header("X-User-Id", 1).header("X-User-Role", "USUARIO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imagenBase64").value("AAAA"));
     }
 
     @Test
