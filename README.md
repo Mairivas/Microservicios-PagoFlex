@@ -46,6 +46,7 @@ pagos-service
 soporte-service
 - `POST /api/reportes` (usuario), `GET /api/reportes?estado=`, `GET /api/reportes/{id}`
 - `PUT /api/reportes/{id}/tomar`, `PUT /api/reportes/{id}/resolver` (agente)
+- `GET /api/reportes/compromiso/{compromisoId}` (ejecutivo de la empresa dueña, solo lectura)
 
 API externa usada por la app: `https://mindicador.cl/api`.
 
