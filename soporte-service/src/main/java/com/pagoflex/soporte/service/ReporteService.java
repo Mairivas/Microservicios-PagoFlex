@@ -106,6 +106,19 @@ public class ReporteService {
         return toResponse(reporte);
     }
 
+    public ReporteResponse obtenerPorCompromiso(Long compromisoId, String rol, Long empresaId) {
+        if (!"EJECUTIVO".equals(rol) || empresaId == null) {
+            throw ApiException.forbidden("Tu perfil no tiene acceso a esta opción.");
+        }
+        CompromisoDto compromiso = compromisoClient.obtener(compromisoId);
+        if (!empresaId.equals(compromiso.empresaId())) {
+            throw ApiException.notFound("No encontramos ese compromiso.");
+        }
+        Reporte reporte = reporteRepository.findFirstByCompromisoIdOrderByFechaDesc(compromisoId)
+                .orElseThrow(() -> ApiException.notFound("Este compromiso no tiene reportes."));
+        return toResponse(reporte);
+    }
+
     public ReporteResponse tomar(Long id, Long agenteId) {
         Reporte reporte = buscar(id);
         if (!ABIERTO.equals(reporte.getEstado())) {

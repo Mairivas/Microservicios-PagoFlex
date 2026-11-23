@@ -61,6 +61,16 @@ public class ReporteController {
         return reporteService.obtener(id, userId, rol);
     }
 
+    @GetMapping("/compromiso/{compromisoId}")
+    @Operation(summary = "Reporte de un compromiso de la empresa (ejecutivo, solo lectura)")
+    public ReporteResponse porCompromiso(
+            @PathVariable Long compromisoId,
+            @RequestHeader("X-User-Role") String rol,
+            @RequestHeader(value = "X-Empresa-Id", required = false) String empresaId) {
+        Long empresa = empresaId == null || empresaId.isBlank() ? null : Long.valueOf(empresaId);
+        return reporteService.obtenerPorCompromiso(compromisoId, rol, empresa);
+    }
+
     @PutMapping("/{id}/tomar")
     @Operation(summary = "Tomar un reporte abierto (agente)")
     public ReporteResponse tomar(

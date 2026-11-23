@@ -53,7 +53,7 @@ class ReporteServiceTest {
         service = new ReporteService(reporteRepository, evidenciaRepository, compromisoClient, clock);
         when(reporteRepository.save(any(Reporte.class))).thenAnswer(i -> i.getArgument(0));
         when(reporteRepository.count()).thenReturn(6L);
-        when(compromisoClient.obtener(7L)).thenReturn(new CompromisoDto(7L, "CP-2026-0106", 1L, "PENDIENTE"));
+        when(compromisoClient.obtener(7L)).thenReturn(new CompromisoDto(7L, "CP-2026-0106", 1L, 3L, "PENDIENTE"));
     }
 
     private Reporte reporte(Long id, Long usuarioId, String estado, LocalDateTime fecha, Long agenteId) {
@@ -263,5 +263,33 @@ class ReporteServiceTest {
         when(evidenciaRepository.findByReporteId(1L)).thenReturn(Optional.empty());
 
         assertThrows(ApiException.class, () -> service.obtenerEvidencia(1L, 1L, "USUARIO"));
+    }
+
+    @Test
+    void elEjecutivoVeElReporteDeUnCompromisoDeSuEmpresa() {
+        when(reporteRepository.findFirstByCompromisoIdOrderByFechaDesc(7L))
+                .thenReturn(Optional.of(reporte(9L, 1L, "ABIERTO", AHORA, null)));
+
+        ReporteResponse respuesta = service.obtenerPorCompromiso(7L, "EJECUTIVO", 3L);
+
+        assertEquals("REP-009", respuesta.numero());
+    }
+
+    @Test
+    void elEjecutivoNoVeReportesDeOtraEmpresa() {
+        assertThrows(ApiException.class, () -> service.obtenerPorCompromiso(7L, "EJECUTIVO", 4L));
+    }
+
+    @Test
+    void soloElEjecutivoConsultaPorCompromiso() {
+        assertThrows(ApiException.class, () -> service.obtenerPorCompromiso(7L, "USUARIO", 3L));
+        assertThrows(ApiException.class, () -> service.obtenerPorCompromiso(7L, "EJECUTIVO", null));
+    }
+
+    @Test
+    void sinReportesElEjecutivoRecibeNoEncontrado() {
+        when(reporteRepository.findFirstByCompromisoIdOrderByFechaDesc(7L)).thenReturn(Optional.empty());
+
+        assertThrows(ApiException.class, () -> service.obtenerPorCompromiso(7L, "EJECUTIVO", 3L));
     }
 }

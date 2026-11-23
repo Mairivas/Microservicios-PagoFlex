@@ -12,5 +12,7 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
 
     List<Reporte> findAllByOrderByFechaDesc();
 
+    Optional<Reporte> findFirstByCompromisoIdOrderByFechaDesc(Long compromisoId);
+
     Optional<Reporte> findFirstByCompromisoIdAndEstadoIn(Long compromisoId, Collection<String> estados);
 }

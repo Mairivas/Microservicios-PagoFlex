@@ -145,4 +145,21 @@ class ReporteControllerTest {
                         .header("X-User-Id", 1).header("X-User-Role", "USUARIO"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void ejecutivoConsultaElReporteDeUnCompromiso() throws Exception {
+        when(service.obtenerPorCompromiso(7L, "EJECUTIVO", 3L)).thenReturn(respuesta("ABIERTO"));
+
+        mvc.perform(get("/api/reportes/compromiso/7").header("X-User-Role", "EJECUTIVO").header("X-Empresa-Id", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.numero").value("REP-0026"));
+    }
+
+    @Test
+    void consultaPorCompromisoSinEmpresaLlegaSinEmpresaAlServicio() throws Exception {
+        when(service.obtenerPorCompromiso(7L, "USUARIO", null)).thenReturn(respuesta("ABIERTO"));
+
+        mvc.perform(get("/api/reportes/compromiso/7").header("X-User-Role", "USUARIO"))
+                .andExpect(status().isOk());
+    }
 }
